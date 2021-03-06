@@ -50,7 +50,7 @@ for s in range(143, 164):
 log.debug(sites)
 
 url = "https://reservations.ontarioparks.com/create-booking/results?resourceLocationId=-" + \
-      str(locId) + "147483634&mapId=-" + \
+      str(locId) + "&mapId=-" + \
       str(mapId) + "&searchTabGroupId=0&bookingCategoryId=0&startDate=" + \
       startDate + \
       "&endDate=" + endDate + \

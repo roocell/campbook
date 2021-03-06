@@ -21,32 +21,83 @@ formatter = logging.Formatter('%(asctime)s %(levelname)s %(filename)s:%(lineno)d
 ch.setFormatter(formatter)
 log.addHandler(ch)
 
-startDate = "2021-08-12"
-endDate = "2021-08-24"
-partySize = 4
+# 143 .. 164
+# 154, 152 are kind of crap
 
-if sys.argv[1]:
-    site = sys.argv[1]
-else:
-    site = 162
+# aug8:  144, 147, 149, 154, 155, 162
+# aug9:  150, 161, 163
+# aug10: 142, 143
+# aug11: 151, 152
+# aug12:
+# aug13:
+# aug14:
+# aug15:
+# aug16: 145
+# aug17:
+# aug18:
+# aug19:
+# aug20:
+# aug??:  146, 156, 157
 
-log.debug("trying for site {}".format(site))
+# usage:
+# python ont_grab_site.py <gat/ont> <site#> <startDate> <endDate>
+# python ont_grab_site.py gat T13 2021-08-20 2021-08-25
+# python ont_grab_site.py ont 162 2021-08-08 2021-08-25
 
-parts = str(datetime.datetime.now()).split(" ")
-searchTime = parts[0] + "T" + parts[1] # 2021-03-04T12:21:32.429
-
+fqdn = "reservations.ontarioparks.com"
 bonecho_locid = 2147483634
 bonecho_mazinaw_mapid = 2147483588
 bonecho_fairway_mapid = 2147483585
 locId = bonecho_locid
 mapId = bonecho_mazinaw_mapid
+bookingCategoryId = 0
+searchTabGroupId = 0
+dateAppend = ""
+equip = "&equipmentId=-32768&subEquipmentId=-32767"
+gat = False
 
-url = "https://reservations.ontarioparks.com/create-booking/results?resourceLocationId=-" + \
-      str(locId) + "147483634&mapId=-" + \
-      str(mapId) + "&searchTabGroupId=0&bookingCategoryId=0&startDate=" + \
-      startDate + \
+if sys.argv[1] == "gat":
+    gat = True
+    fqdn = "reservations.ncc-ccn.gc.ca"
+    gat_locid = 2147483648
+    lac_taylor_mapid = 2147483639
+    locId = gat_locid
+    mapId = lac_taylor_mapid
+    bookingCategoryId = 0  # summer
+    searchTabGroupId = 0 # campsite
+    dateAppend = "T00:00:00.000Z"
+    equip = "equipmentId=-32768&subEquipmentId=-32768"
+
+if sys.argv[2]:
+    site = sys.argv[2]
+
+startDate = "2021-08-08" + dateAppend
+endDate = "2021-08-25" + dateAppend
+if sys.argv[3]:
+    startDate = sys.argv[3]
+if sys.argv[4]:
+    endDate = sys.argv[4]
+
+d0 = datetime.datetime.strptime(startDate, "%Y-%m-%d")
+d1 = datetime.datetime.strptime(endDate, "%Y-%m-%d")
+nights = (d1 - d0).days
+
+startDate += dateAppend
+endDate += dateAppend
+
+partySize = 4
+
+log.debug("trying {} for site {} for {} nights".format(fqdn, site, nights))
+
+parts = str(datetime.datetime.now()).split(" ")
+searchTime = parts[0] + "T" + parts[1] # 2021-03-04T12:21:32.429
+
+url = "https://" + fqdn + "/create-booking/results?resourceLocationId=-" + \
+      str(locId) + "&mapId=-" + \
+      str(mapId) + "&searchTabGroupId=" + str(searchTabGroupId) + "&bookingCategoryId=" + str(bookingCategoryId) + \
+      "&startDate=" + startDate + \
       "&endDate=" + endDate + \
-      "&nights=8&isReserving=true&equipmentId=-32768&subEquipmentId=-32767&partySize=" + \
+      "&nights=" + str(nights) + "&isReserving=true" + equip + "&partySize=" + \
       str(partySize) + \
       "&searchTime=" + searchTime
 
@@ -54,10 +105,24 @@ driver = webdriver.Chrome('./chromedriver.exe')
 driver.get(url)
 log.debug(driver.title)
 
+# if gatineau - need to click the Campsites tab
+if gat:
+    log.debug("looking for campsite tab...")
+    tabDiv = 0
+    while(tabDiv == 0): # wait for page load
+        try:
+          tabDiv = driver.find_element_by_id('mat-tab-label-1-1')
+        except:
+          continue;
+    log.debug("found tab ... now clicking it")
+    driver.execute_script("arguments[0].click();", tabDiv) # perform JS click
+
+
 
 # bring up mapview (it's the default)
 
 # find the site to click
+log.debug("looking for map...")
 mapDiv = 0
 while(mapDiv == 0): # wait for page load
     try:
@@ -88,6 +153,7 @@ while(reserveButton == 0): # wait for page load
 
 # click reserve
 log.debug('clicking reserve')
+driver.execute_script("arguments[0].scrollIntoView();", reserveButton)
 driver.execute_script("arguments[0].click();", reserveButton) # perform JS click
 
 d = 0
@@ -108,11 +174,16 @@ while True:
         exit()
     log.debug('found dialog')
     d +=1
-    not_allowed = "Reserving these dates is not yet allowed"
-    #message = dialog.find_element_by_tag_name('li')
-    message = dialog.find_element_by_id('message-0')
+
     dialogAction = driver.find_element_by_tag_name('mat-dialog-actions')
+    dialogContent = driver.find_element_by_tag_name('mat-dialog-content')
+    message = dialogContent.find_element_by_tag_name('li')
     log.debug(message.text)
+
+    not_allowed = "Reserving these dates is not yet allowed"
+    if gat:
+        not_allowed = "will become available for reservation on March 15"
+
     if not_allowed in message.text:
         log.debug("closing dialog")
         dialogCloseButton = dialogAction.find_element_by_tag_name('button')
