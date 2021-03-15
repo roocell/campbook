@@ -39,9 +39,14 @@ log.addHandler(ch)
 # aug??:  146, 156, 157
 
 # usage:
-# python ont_grab_site.py <gat/ont> <site#> <startDate> <endDate>
-# python ont_grab_site.py gat T13 2021-08-20 2021-08-25
-# python ont_grab_site.py ont 162 2021-08-08 2021-08-25
+# python ont_grab_site.py <gat/ont> <map> <site#> <startDate> <endDate>
+# python ont_grab_site.py gat taylor T13 2021-08-20 2021-08-25
+# python grab_site.py ont 162 2021-08-08 2021-08-25
+
+# python grab_site.py gat peche 12A 2021-07-30 2021-07-31
+# python grab_site.py gat taylor T13 2021-07-18 2021-07-23
+# python grab_site.py gat phillipe 330 2021-07-18 2021-07-23
+
 
 fqdn = "reservations.ontarioparks.com"
 bonecho_locid = 2147483634
@@ -59,23 +64,37 @@ if sys.argv[1] == "gat":
     gat = True
     fqdn = "reservations.ncc-ccn.gc.ca"
     gat_locid = 2147483648
-    lac_taylor_mapid = 2147483639
+
     locId = gat_locid
-    mapId = lac_taylor_mapid
-    bookingCategoryId = 0  # summer
+    bookingCategoryId = 4  # summer
     searchTabGroupId = 0 # campsite
-    dateAppend = "T00:00:00.000Z"
+    #dateAppend = "T00:00:00.000Z"
     equip = "equipmentId=-32768&subEquipmentId=-32768"
 
-if sys.argv[2]:
-    site = sys.argv[2]
+    # https://reservations.ncc-ccn.gc.ca/create-booking/results?resourceLocationId=-2147483648&mapId=-2147483642&searchTabGroupId=0&bookingCategoryId=4&startDate=2021-07-18&endDate=2021-07-23&nights=5&isReserving=true&subEquipmentId=-32768&partySize=4&searchTime=2021-03-14T20:24:23.846&equipmentId=-32768
+
+lac_taylor_mapid = 2147483639
+lac_phillip_mapid = 2147483642
+lac_peche_mapid = 2147483647
+
+
+map = sys.argv[2]
+if map == "taylor":
+    mapId = lac_taylor_mapid
+if map == "phillipe":
+    mapId = lac_phillip_mapid
+if map == "peche":
+    mapId = lac_peche_mapid
+
+if sys.argv[3]:
+    site = sys.argv[3]
 
 startDate = "2021-08-08" + dateAppend
 endDate = "2021-08-25" + dateAppend
-if sys.argv[3]:
-    startDate = sys.argv[3]
 if sys.argv[4]:
-    endDate = sys.argv[4]
+    startDate = sys.argv[4]
+if sys.argv[5]:
+    endDate = sys.argv[5]
 
 d0 = datetime.datetime.strptime(startDate, "%Y-%m-%d")
 d1 = datetime.datetime.strptime(endDate, "%Y-%m-%d")
@@ -99,6 +118,8 @@ url = "https://" + fqdn + "/create-booking/results?resourceLocationId=-" + \
       "&nights=" + str(nights) + "&isReserving=true" + equip + "&partySize=" + \
       str(partySize) + \
       "&searchTime=" + searchTime
+
+print(url)
 
 driver = webdriver.Chrome('./chromedriver.exe')
 driver.get(url)
@@ -174,16 +195,20 @@ while True:
     log.debug('found dialog')
     d +=1
 
-    dialogAction = driver.find_element_by_tag_name('mat-dialog-actions')
-    dialogContent = driver.find_element_by_tag_name('mat-dialog-content')
-    message = dialogContent.find_element_by_tag_name('li')
-    log.debug(message.text)
-
     not_allowed = "Reserving these dates is not yet allowed"
     if gat:
         not_allowed = "will become available for reservation on March 15"
 
-    if not_allowed in message.text:
+    dialogAction = driver.find_element_by_tag_name('mat-dialog-actions')
+    dialogContent = driver.find_element_by_tag_name('mat-dialog-content')
+    messages = dialogContent.find_elements_by_tag_name('li')
+    dialog_conf = False
+    for m in messages:
+        log.debug(m.text)
+        if not_allowed in m.text:
+            dialog_conf = True
+
+    if dialog_conf:
         log.debug("closing dialog")
         dialogCloseButton = dialogAction.find_element_by_tag_name('button')
         driver.execute_script("arguments[0].click();", dialogCloseButton) # perform JS click

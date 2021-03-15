@@ -12,11 +12,16 @@
 # https://sites.google.com/a/chromium.org/chromedriver/downloads
 # i'm using 88.0
 
+# usage:
+# pythong cancel_checker.py <mazinaw/fairway>
+
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 import datetime
 import logging
 import sendemail
+import time
+import sys
 
 # create logger
 log = logging.getLogger(__file__)
@@ -34,6 +39,7 @@ startDate = "2021-07-17"
 endDate = "2021-07-24"
 partySize = 4
 consecMin = 1  # min consecutive days to look for
+period = 60*5  # 5 min
 
 parts = str(datetime.datetime.now()).split(" ")
 searchTime = parts[0] + "T" + parts[1] # 2021-03-04T12:21:32.429
@@ -41,14 +47,24 @@ searchTime = parts[0] + "T" + parts[1] # 2021-03-04T12:21:32.429
 bonecho_locid = 2147483634
 bonecho_mazinaw_mapid = 2147483588
 bonecho_fairway_mapid = 2147483585
-locId = bonecho_locid
-mapId = bonecho_mazinaw_mapid
 
-# sites of interest
-sites = []
-for s in range(1, 164):
-    sites.append(str(s))
-log.debug(sites)
+locId = bonecho_locid
+
+if sys.argv[1] == "fairway":
+    # sites of interest
+    # mazinaw = 1-164
+    # fairway = 281-400
+    mapId = bonecho_fairway_mapid
+    sites = []
+    for s in range(281, 400+1):
+        sites.append(str(s))
+    log.debug(sites)
+else:
+    mapId = bonecho_mazinaw_mapid
+    sites = []
+    for s in range(1, 163+1):
+        sites.append(str(s))
+    log.debug(sites)
 
 url = "https://reservations.ontarioparks.com/create-booking/results?resourceLocationId=-" + \
       str(locId) + "&mapId=-" + \
@@ -131,16 +147,22 @@ while True:
 
     if outputStr == "":
         log.debug("something failed or no sites...trying again")
+        time.sleep(period)
         driver.refresh()
         continue
 
     if lastOutputStr != outputStr:
+        email_content = outputStr
+        email_content += "<BR><BR>"
+        email_content += url
         if lastOutputStr != "":
+            email_content += "<BR>NEW CANCELLATION!<BR>"
             log.debug("NEW CANCELLATION!")
-            sendemail.send(outputStr)
+            sendemail.send(email_content)
         else:
             # send first one
-            sendemail.send(outputStr)
+            email_content += "<BR>INITIAL <BR>"
+            sendemail.send(email_content)
         log.debug(outputStr)
     else:
         log.debug("no change")
@@ -148,6 +170,7 @@ while True:
 
 
     # keep checking
+    time.sleep(period)
     driver.refresh()
 
 
